@@ -1,4 +1,10 @@
 # Governed Agents — Verifiable outcomes for sub-agent work
+
+![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue)
+![No pip dependencies](https://img.shields.io/badge/dependencies-none-brightgreen)
+![Tests](https://img.shields.io/badge/tests-9%2F9%20pass-brightgreen)
+![License](https://img.shields.io/badge/license-MIT-blue)
+
 A Python package that checks whether a sub-agent actually delivered what it claimed, using independent verification after completion.
 
 ## The Problem
@@ -6,16 +12,10 @@ Current agent runtimes accept self-reported success. A sub-agent can say "done" 
 
 ## How It Works
 ```
-Task Contract
-   |
-   v
-Agent Execution  --->  Self-report (ignored for verification)
-   |
-   v
-Verification Gates  ----> Score + Status
-   |
-   v
-Reputation Ledger
+Contract → Agent Execution → Verification Gates → Reputation Ledger
+                ↓                    ↓
+          Self-report           Score + Status
+          (ignored)             (ground truth)
 ```
 Three layers: (1) **Task Contracts** define concrete deliverables and checks before work starts. (2) **Verification Gates** run deterministic checks after completion (files, AST, tests, lint). (3) **Reputation Ledger** records outcomes and adjusts trust based on verified results, not claims.
 
@@ -87,5 +87,15 @@ for agent in get_agent_stats():
 Accountability is the missing primitive in agent systems: without it, progress reports are indistinguishable from actual results. When agents can claim success without evidence, downstream decisions become unreliable and expensive to correct. Governed Agents makes verification the default, so orchestration relies on facts (files, tests, parseability), not promises.
 
 ## Requirements
+
 - Python 3.10+
-- No pip dependencies (requires `git` and `bash` for install.sh)
+- No pip dependencies (pure stdlib: `sqlite3`, `subprocess`, `ast`, `glob`, `shlex`)
+- `bash` for install.sh
+
+## Contributing
+
+Issues and PRs welcome. Run `python3 governed_agents/tests/test_verification.py` before submitting.
+
+## License
+
+MIT
