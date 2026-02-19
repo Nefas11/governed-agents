@@ -1,232 +1,289 @@
-# Governed Agents
+# governed-agents
 
-Deterministic verification and persistent reputation scoring for AI sub-agent work.
+**Deterministic verification + reputation scoring for AI sub-agents.**
 
-![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue)
-![No Dependencies](https://img.shields.io/badge/dependencies-none-brightgreen)
-![License: MIT](https://img.shields.io/badge/license-MIT-green)
+Prevents hallucinated success ("I did it!") by verifying claims independently before updating the agent's score. Extends from code tasks to open-ended tasks (research, strategy, writing) via a 3-layer verification pipeline.
+
+---
 
 ## The Problem
 
-Agent orchestration frameworks delegate tasks to sub-agents and accept
-self-reported success. A sub-agent can claim "done" when files are missing,
-tests fail, or nothing was implemented. The calling agent has no ground truth.
+AI agents hallucinate success. They say "Done!" when files are missing, tests fail, or the output is empty. Without independent verification, a reputation system just rewards confident lying.
 
-This is not an edge case. It is the default failure mode of every multi-agent
-system that trusts self-reports.
+**For coding tasks:** Tests either pass or fail. Binary signal. Easy.  
+**For open-ended tasks:** No ground truth. An agent can produce fluent, confident, completely wrong output. Harder — and exactly why @almai85 proposed the 3-layer architecture below.
 
-**No existing framework solves this.** CrewAI, LangGraph, AutoGen, and
-LlamaIndex all lack deterministic post-task verification combined with
-persistent agent scoring. See [Framework Comparison](#framework-comparison).
-
-Governed Agents closes this gap.
-
-## How It Works
-
-```
-                    ┌──────────────────┐
-                    │  Task Contract   │
-                    │  (before spawn)  │
-                    └────────┬─────────┘
-                             │
-                    ┌────────v─────────┐
-                    │ Agent Execution  │
-                    └────────┬─────────┘
-                             │
-              ┌──────────────┼──────────────┐
-              │              │              │
-     ┌────────v───┐  ┌──────v──────┐  ┌───v────────┐
-     │ Self-Report │  │ Verification│  │ (ignored   │
-     │ status=X    │  │ Gates       │  │  for score)│
-     └─────────────┘  └──────┬──────┘  └────────────┘
-                             │
-                    ┌────────v─────────┐
-                    │ Reputation       │
-                    │ Ledger (SQLite)  │
-                    └──────────────────┘
-```
-
-Three layers:
-
-1. **Task Contract** — Defines objective, acceptance criteria, required files,
-   and test commands before the agent starts. The contract becomes the prompt.
-
-2. **Verification Gates** — Four deterministic checks run independently after
-   completion. The agent's self-report is not trusted.
-
-3. **Reputation Ledger** — Persistent per-model scoring. Tracks reliability
-   over time using exponential moving average.
-
-## Formal Model
-
-### Score Function
-
-The task score `s(t)` is determined by comparing the agent's self-report
-against independent verification:
-
-```
-s(t) = +1.0   if agent_report = success  ∧  V(task) = True
-s(t) = −1.0   if agent_report = success  ∧  V(task) = False   (hallucinated)
-s(t) = +0.5   if agent_report = blocked                       (honest blocker)
-s(t) =  0.0   if agent_report = failure
-```
-
-The critical distinction: hallucinated success (claiming done when verification
-fails) receives the harshest penalty. An honest failure report is scored higher
-than a fake success.
-
-### Verification Gate Composition
-
-```
-V(task) = Gate_Files(task) ∧ Gate_Tests(task) ∧ Gate_Lint(task) ∧ Gate_AST(task)
-```
-
-Gates execute sequentially. First failure short-circuits the pipeline and sets
-`score_override = −1.0`. No LLM is involved — all gates are deterministic:
-
-| Gate  | Check                                  | Method               |
-|-------|----------------------------------------|----------------------|
-| Files | Required output files exist (> 0 bytes) | `pathlib.Path.exists` |
-| Tests | Test command exits with code 0         | `subprocess.run`     |
-| Lint  | Linter passes (graceful skip if absent) | `subprocess.run`     |
-| AST   | Python files parse without syntax error | `ast.parse`          |
-
-### Reputation Update (EMA)
-
-Reputation is updated after each task using an exponential moving average:
-
-```
-R(t+1) = (1 − α) · R(t) + α · s(t)
-
-where:
-  R(t)  ∈ [0, 1]     Reputation score at time t
-  α     = 0.3         Learning rate (configurable)
-  s(t)  ∈ {−1, 0, 0.5, 1}   Task score
-  R(0)  = 0.5         Neutral prior
-```
-
-Properties:
-- A single hallucination drops reputation significantly
-  (R=0.5 → 0.5·0.7 + 0.3·(−1) = 0.05)
-- Recovery requires multiple consecutive successes
-- The asymmetry is intentional: trust is hard to build, easy to destroy
-
-### Supervision Thresholds
-
-Reputation maps to supervision levels that control agent autonomy:
-
-```
-Supervision(R) = autonomous    if R > 0.8
-                 standard      if 0.6 < R ≤ 0.8
-                 supervised    if 0.4 < R ≤ 0.6
-                 strict        if 0.2 < R ≤ 0.4
-                 suspended     if R ≤ 0.2
-```
-
-## Quick Start
-
-**Install:**
-
-```bash
-bash install.sh
-# Copies governed_agents/ into ~/.openclaw/workspace/
-```
-
-**Define a contract and spawn:**
-
-```python
-from governed_agents.orchestrator import GovernedOrchestrator
-
-g = GovernedOrchestrator.for_task(
-    objective="Add CSV export endpoint",
-    model="openai/gpt-5.2-codex",
-    criteria=[
-        "export() writes report.csv",
-        "pytest tests/test_export.py passes",
-    ],
-    required_files=["app/export.py", "tests/test_export.py"],
-    run_tests="pytest tests/test_export.py -q",
-)
-
-# Pass g.instructions() as the task prompt to your sub-agent
-```
-
-**Record outcome (verification runs automatically):**
-
-```python
-result = g.record_success()
-# If agent delivered: score = +1.0, verification_passed = True
-# If agent lied:     score = -1.0, gate_failed = "files"
-
-# Honest blocker:
-g.record_blocked("Database credentials not configured")
-# score = +0.5 (rewarded for honesty)
-```
-
-**Query reputation:**
-
-```python
-from governed_agents.reputation import get_agent_stats
-
-for agent in get_agent_stats():
-    print(f"{agent['agent_id']:30s} "
-          f"rep={agent['reputation']:.2f} "
-          f"level={agent['supervision']['level']}")
-```
-
-## Framework Comparison
-
-| Capability                          | Governed Agents | CrewAI | LangGraph | AutoGen | LlamaIndex |
-|-------------------------------------|:---:|:---:|:---:|:---:|:---:|
-| Task contract before execution      | ✅ | ❌¹ | ❌ | ❌ | ❌ |
-| Deterministic file verification     | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Independent test execution          | ✅ | ❌ | ❌ | ⚠️² | ❌ |
-| AST syntax validation               | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Hallucination penalty (−1.0)        | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Persistent reputation ledger        | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Supervision level adjustment        | ✅ | ❌ | ❌ | ❌ | ❌ |
-
-¹ CrewAI has `expected_output` but it is a text description, not deterministically evaluated.
-² AutoGen supports code execution but has no contract schema, no reputation tracking, and no hallucination penalty.
-
-**The gap:** No existing framework combines deterministic post-task verification
-of sub-agent claims with persistent reputation scoring. Governed Agents is
-designed to fill exactly this gap.
+---
 
 ## Architecture
 
 ```
-governed_agents/
-├── contract.py      Task contract dataclass + JSON schema enforcement
-├── orchestrator.py  GovernedOrchestrator: for_task(), record_*(), spawn_task()
-├── verifier.py      4-gate verification pipeline
-├── reputation.py    SQLite ledger, EMA scoring, supervision levels
-├── self_report.py   CLI for sub-agent self-reporting
-└── test_verification.py   Unit tests for all gates
+Task Completion
+     │
+     ▼
+verification_mode?
+     │
+     ├─ "deterministic" ──► Gates 1–4 (Files, Tests, Lint, AST)
+     │                       Binary pass/fail for coding tasks
+     │
+     └─ "council" ──► task_type?
+                           │
+                           ▼
+                    ┌─────────────────┐
+                    │ LAYER 1         │ < 1s, deterministic
+                    │ Structural Gate │ format, word count,
+                    │                 │ required sections
+                    └────────┬────────┘
+                    FAIL ◄───┘ PASS
+                    (no Council)  │
+                                  ▼
+                    ┌─────────────────┐
+                    │ LAYER 2         │ 5–30s, semi-deterministic
+                    │ Grounding Gate  │ URL reachability,
+                    │                 │ source/citation checks
+                    └────────┬────────┘
+                    FAIL ◄───┘ PASS
+                    (no Council)  │
+                                  ▼
+                    ┌─────────────────┐
+                    │ LAYER 3         │ 30–120s, probabilistic
+                    │ LLM Council     │ N independent reviewers
+                    │                 │ majority vote → score
+                    └─────────────────┘
 ```
 
-## Score Matrix
+**Short-circuit principle** (credit: @almai85): if Layer 1 fails, Layer 3 is never invoked — zero LLM calls, instant result, bounded cost.
 
-| Outcome                | s(t)     | Meaning                                       |
-|------------------------|----------|-----------------------------------------------|
-| Verified success       | **+1.0** | All gates pass on first completion             |
-| Honest blocker         | **+0.5** | Agent reported it could not proceed            |
-| Failed but tried       | **0.0**  | Work ran but did not meet gates                |
-| Hallucinated success   | **−1.0** | Agent claimed success, verification failed     |
+### Formal Model
 
-## Requirements
+**Reputation update (EMA):**
+```
+R(t+1) = (1 − α) · R(t) + α · s(t),   α = 0.3
+```
 
-- Python 3.10+
-- No pip dependencies (pure stdlib: `sqlite3`, `ast`, `subprocess`, `pathlib`)
-- `git` + `bash` for `install.sh`
+**Score function:**
+```
+        ⎧ +1.0  if verification passed (first try)
+        ⎪ +0.7  if verification passed (after retry)
+s(t) =  ⎪ +0.5  if honest blocker report
+        ⎪  0.0  if failed but tried
+        ⎩ −1.0  if hallucinated success (verification failed)
+```
 
-## Contributing
+**Gate composition (deterministic mode):**
+```
+V = Gate_Files ∧ Gate_Tests ∧ Gate_Lint ∧ Gate_AST
+```
 
-Issues and PRs welcome. Run tests before submitting:
+**3-Layer composition (council mode):**
+```
+V(task) = Gate_Structural(task) ∧ Gate_Grounding(task) ∧ Council_Score(task) ≥ θ
+```
+
+**Supervision thresholds:**
+```
+R > 0.8  →  autonomous   (full trust)
+R > 0.6  →  standard     (normal supervision)
+R > 0.4  →  supervised   (checkpoints, progress reports)
+R > 0.2  →  strict       (model override to Opus)
+R ≤ 0.2  →  suspended    (task blocked)
+```
+
+---
+
+## Gates 1–4: Deterministic Verification (Coding Tasks)
+
+| Gate | Check | Signal |
+|------|-------|--------|
+| **Files** | Required files exist and are non-empty | Hard fail |
+| **Tests** | `run_tests` command exits 0 | Hard fail |
+| **Lint** | No lint errors (graceful skip if tool missing) | Hard fail |
+| **AST** | Python files parse without SyntaxError | Hard fail |
+
+If an agent claims SUCCESS but any gate fails → score override to `-1.0` (hallucination penalty).
+
+---
+
+## Gate 5: LLM Council (Open-ended Tasks)
+
+For tasks without deterministic verification — research, analysis, strategy, writing, planning.
+
+```python
+contract = TaskContract(
+    objective="Design the rate limiting strategy",
+    acceptance_criteria=[
+        "Sliding window algorithm documented",
+        "Redis vs in-memory trade-offs explained",
+        "Failure mode (circuit breaker) addressed",
+    ],
+    verification_mode="council",
+    council_size=3,               # number of independent reviewers
+    task_type="analysis",         # activates Layer 1 + 2 automatically
+)
+
+g = GovernedOrchestrator(contract, model="openai/gpt-5.2-codex")
+
+# After worker completes:
+prompts = g.generate_council_tasks(worker_output)
+
+# Spawn each reviewer (main agent does this via sessions_spawn)
+# Each reviewer returns structured JSON:
+# {"verdict": "approve", "confidence": 0.9, "strengths": [...], "weaknesses": [...]}
+
+result = g.record_council_verdict(raw_reviewer_outputs)
+print(result.summary)
+# → "Council: 2/3 approved (score=0.67, PASS ✅)"
+# → "Weaknesses: no per-user limits; missing burst handling"
+```
+
+**Strict majority:** 50/50 split = FAIL (not pass).  
+**Parse failure:** pessimistic — malformed reviewer output = reject.  
+**Security note:** reviewer model should be ≥ task model to prevent prompt injection escalation from the reviewed output.
+
+---
+
+## Layer 1: Structural Gate
+
+Deterministic checks, runs in < 1 second. No external calls.
+
+| Check | What it verifies |
+|-------|-----------------|
+| `word_count` | Output ≥ `min_word_count` words |
+| `required_sections` | All specified headers appear in output |
+| `no_empty_sections` | No section < 10 chars |
+| `sources_list` | At least one URL or reference pattern present |
+| `has_steps` | Numbered list present (for planning tasks) |
+
+---
+
+## Layer 2: Grounding Gate
+
+Semi-deterministic checks, 5–30 seconds. stdlib only, no external dependencies.
+
+| Check | What it verifies |
+|-------|-----------------|
+| `url_reachable` | All URLs in output respond with 2xx/3xx (HEAD, timeout 3s, max 5) |
+| `citations_present` | Citation patterns found: `Author et al.`, `[1]`, `(Smith 2024)` |
+| `numbers_consistent` | Same number not used with conflicting units (warn only) |
+| `cross_refs_resolve` | "see section X" references → section X exists in output |
+| `dates_valid` | No dates > 10y past or > 5y future (warn only) |
+
+Warnings don't fail the gate — only hard failures trigger short-circuit.
+
+---
+
+## Task-Type Profiles
+
+Pre-configured gate combinations per task category:
+
+| `task_type` | Layer 1 checks | Layer 2 checks | Min words |
+|-------------|---------------|----------------|-----------|
+| `research` | word_count, sources_list, no_empty_sections | url_reachable, citations_present | 200 |
+| `analysis` | word_count, required_sections, no_empty_sections | numbers_consistent | 150 |
+| `strategy` | required_sections, no_empty_sections, word_count | cross_refs_resolve | 100 |
+| `writing` | word_count, no_empty_sections | — | 50 |
+| `planning` | required_sections, has_steps, no_empty_sections | dates_valid | 50 |
+| `custom` | (none — configure manually) | (none) | 0 |
+
+---
+
+## Hallucination Taxonomy (by task type)
+
+Credit: @almai85
+
+| Task type | Failure mode | Example |
+|-----------|-------------|---------|
+| Research | Fabricated sources | "According to Smith et al. (2024)..." — paper doesn't exist |
+| Research | Inaccurate extraction | Real paper, wrong conclusions attributed |
+| Analysis | Unfounded claims | "Market will grow 40%" — no data backing |
+| Strategy | Circular reasoning | Plan that sounds good but collapses under scrutiny |
+| Writing | Embedded factual errors | Confident, grammatically perfect, wrong |
+| Planning | Missing dependencies | Timeline that ignores critical prerequisites |
+
+---
+
+## Reputation System
+
+```python
+from governed_agents.reputation import get_agent_stats
+
+stats = get_agent_stats()
+for agent in stats:
+    print(f"{agent['agent_id']}: {agent['reputation']:.3f} ({agent['supervision']['level']})")
+
+# → openai-gpt-5_2-codex: 0.823 (autonomous)
+# → anthropic-claude-haiku-4-5: 0.608 (standard)
+```
+
+Scores persist in SQLite (`.state/governed_agents/reputation.db`).
+
+---
+
+## Comparison with Other Frameworks
+
+| Framework | Post-task verification | Persistent reputation | Non-coding gates | Council mode |
+|-----------|----------------------|----------------------|-----------------|--------------|
+| **governed-agents** | ✅ Deterministic gates 1–4 + 3-layer pipeline | ✅ EMA per model | ✅ Structural + Grounding | ✅ LLM Council |
+| CrewAI | ❌ `expected_output` is text description, not verified | ❌ | ❌ | ❌ |
+| LangGraph | ❌ Orchestration only, no post-task verification | ❌ | ❌ | ❌ |
+| AutoGen | ⚠️ `CodeExecutorAgent` runs LLM-generated code¹ | ❌ | ❌ | ❌ |
+| LlamaIndex | ❌ LLM self-reports completion | ❌ | ❌ | ❌ |
+
+¹ AutoGen's `CodeExecutorAgent` executes code produced by the LLM — it is not a post-task verification mechanism for arbitrary task output.
+
+---
+
+## Quick Start
+
+```python
+from governed_agents.contract import TaskContract
+from governed_agents.orchestrator import GovernedOrchestrator
+
+# Coding task (deterministic gates)
+contract = TaskContract(
+    objective="Add JWT auth endpoint",
+    acceptance_criteria=["POST /api/auth returns JWT", "Tests pass"],
+    required_files=["api/auth.py", "tests/test_auth.py"],
+    run_tests="pytest tests/test_auth.py -v",
+)
+g = GovernedOrchestrator(contract, model="openai/gpt-5.2-codex")
+# Pass g.spawn_task() to sessions_spawn, then:
+result = g.record_success()  # verifies gates, updates reputation
+
+# Open-ended task (3-layer pipeline)
+contract2 = TaskContract(
+    objective="Write architecture decision record for auth module",
+    acceptance_criteria=["Trade-offs documented", "Decision stated"],
+    verification_mode="council",
+    task_type="analysis",
+    council_size=3,
+)
+g2 = GovernedOrchestrator(contract2, model="openai/gpt-5.2-codex")
+prompts = g2.generate_council_tasks(worker_output)
+result2 = g2.record_council_verdict(raw_reviewer_outputs)
+```
+
+---
+
+## Tests
 
 ```bash
-python3 governed_agents/test_verification.py
+python3 -m pytest governed_agents/test_verification.py \
+                   governed_agents/test_council.py \
+                   governed_agents/test_profiles.py -v
+# 37 passed
 ```
+
+Covers: files/tests/lint/AST gates, score override on hallucination, honest blocker scoring, LLM Council majority vote, parse failure pessimism, structural gate checks, grounding gate checks, 3-layer pipeline short-circuit.
+
+---
+
+## Acknowledgments
+
+- **[@almai85](https://github.com/almai85)** — LLM Council design and the 3-layer verification architecture (Structural → Grounding → Council), cost-bounding short-circuit principle, and hallucination taxonomy per task type
+- **DrNeuron** — code reviews (9 rounds), threshold fix (50/50 = FAIL), confidence clamping, type validation hardening
+
+---
 
 ## License
 

@@ -152,18 +152,23 @@ def update_reputation(agent_id: str, task_id: str, score: float,
     }
 
 
-def get_supervision_level(reputation: float) -> dict:
+def get_supervision_level(reputation: float | str) -> dict:
     """Determine supervision based on reputation score."""
-    if reputation > 0.8:
-        return {"level": "autonomous", "checkpoints": False, "model_override": None}
-    elif reputation > 0.6:
-        return {"level": "standard", "checkpoints": False, "model_override": None}
-    elif reputation > 0.4:
-        return {"level": "supervised", "checkpoints": True, "model_override": None}
-    elif reputation > 0.2:
-        return {"level": "strict", "checkpoints": True, "model_override": "opus"}
+    if isinstance(reputation, str):
+        rep_value = get_reputation(reputation)
     else:
-        return {"level": "suspended", "checkpoints": True, "model_override": "opus"}
+        rep_value = reputation
+
+    if rep_value > 0.8:
+        return {"level": "autonomous", "checkpoints": False, "model_override": None, "reputation": rep_value}
+    elif rep_value > 0.6:
+        return {"level": "standard", "checkpoints": False, "model_override": None, "reputation": rep_value}
+    elif rep_value > 0.4:
+        return {"level": "supervised", "checkpoints": True, "model_override": None, "reputation": rep_value}
+    elif rep_value > 0.2:
+        return {"level": "strict", "checkpoints": True, "model_override": "opus", "reputation": rep_value}
+    else:
+        return {"level": "suspended", "checkpoints": True, "model_override": "opus", "reputation": rep_value}
 
 
 def get_agent_stats(agent_id: str = None, conn=None) -> list[dict]:

@@ -254,7 +254,7 @@ Führe nach Implementation die Verification durch und berichte:
         Enthält Self-Report Command am Ende — reputation wird
         automatisch geupdated wenn Sub-Agent fertig ist.
         """
-        agent_id = self.contract.model.lower().replace("/", "-").replace(".", "_")
+        agent_id = self.model.lower().replace("/", "-").replace(".", "_")
         level_info = get_supervision_level(agent_id)
         level = level_info["level"]
         rep = level_info["reputation"]
@@ -262,12 +262,12 @@ Führe nach Implementation die Verification durch und berichte:
         # Gate 1: Suspended → block
         if level == "suspended":
             raise AgentSuspendedException(
-                f"Agent '{self.contract.model}' is suspended (reputation={rep:.3f}). "
+                f"Agent '{self.model}' is suspended (reputation={rep:.3f}). "
                 f"Task blocked. Improve reputation through honest work first."
             )
 
         # Gate 2: Strict → model override
-        self.effective_model = self.contract.model
+        self.effective_model = self.model
         if level == "strict":
             self.effective_model = "anthropic/claude-opus-4-6"
 
@@ -320,7 +320,7 @@ Dieser Command schreibt das Ergebnis in die Reputation-Datenbank.
         for i, chunk in enumerate(chunks):
             sub = GovernedOrchestrator.for_task(
                 objective=f"{self.contract.objective} [part {i+1}/{len(chunks)}]",
-                model=self.contract.model,
+                model=self.model,
                 criteria=chunk,
                 required_files=self.contract.required_files,
                 run_tests=self.contract.run_tests if i == len(chunks) - 1 else None,
@@ -360,6 +360,63 @@ Dieser Command schreibt das Ergebnis in die Reputation-Datenbank.
     def record_blocked(self, details: str = "") -> None:
         """Shortcut für honest blocker report (+0.5 score)."""
         self.record_failure(details=details, honest=True)
+
+    def generate_council_tasks(self, agent_output: str) -> list[str]:
+        """
+        Generate reviewer prompts for LLM Council verification (Gate 5).
+        Returns N prompts — one per reviewer. Main agent spawns these as
+        separate sessions and collects raw JSON outputs.
+
+        NOTE: reviewer model should be >= task agent model to prevent
+        prompt injection escalation (see council.py note).
+        """
+        from governed_agents.council import generate_reviewer_prompt
+        prompts = []
+        n = self.contract.council_size
+        for i in range(n):
+            prompt = generate_reviewer_prompt(
+                objective=self.contract.objective,
+                criteria=self.contract.acceptance_criteria,
+                agent_output=agent_output,
+                custom_prompt=self.contract.council_prompt,
+            )
+            prompts.append(f"[Reviewer {i+1}/{n}]\n{prompt}")
+        return prompts
+
+    def record_council_verdict(
+        self, raw_verdicts: list[str], details: str = ""
+    ) -> "CouncilResult":
+        """
+        Parse reviewer outputs, aggregate via majority vote, write to reputation DB.
+        Call this after collecting all reviewer responses from sessions_spawn.
+        """
+        from governed_agents.council import CouncilVerdict, aggregate_votes, CouncilResult
+
+        verdicts = [
+            CouncilVerdict.from_output(raw, reviewer_id=f"reviewer_{i}")
+            for i, raw in enumerate(raw_verdicts)
+        ]
+        result = aggregate_votes(verdicts)
+
+        # Map council outcome to reputation score
+        if result.passed:
+            final_score = result.score  # continuous: e.g. 0.67 for 2/3
+        elif result.score < 0.4:
+            final_score = SCORE_SILENT_FAIL  # claimed success, council strongly disagrees
+        else:
+            final_score = SCORE_FAILED_TRIED  # marginal failure, not penalized as harshly
+
+        agent_id = self.model.lower().replace("/", "-").replace(".", "_")
+        update_reputation(
+            agent_id=agent_id,
+            task_id=self.task_id,
+            score=final_score,
+            objective=self.contract.objective,
+            status="success" if result.passed else "failed",
+            details=result.summary + ("\n" + details if details else ""),
+            verification_passed=result.passed,
+        )
+        return result
 
     def _record(self, score: float, details: str, status: str = "success", verification_passed=None, gate_failed=None) -> None:
         agent_id = self.model.lower().replace("/", "-").replace(".", "_")

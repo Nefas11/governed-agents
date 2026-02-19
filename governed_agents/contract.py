@@ -41,6 +41,12 @@ class TaskContract:
     timeout_seconds: int = 120
     # Verification gates
     min_file_size: int = 0           # bytes
+    # Gate 5 — LLM Council (open-ended verification)
+    verification_mode: str = "deterministic"   # "deterministic" | "council"
+    council_size: int = 3                       # number of independent reviewer agents
+    council_prompt: Optional[str] = None       # custom reviewer instructions (optional)
+    # Task-Type Profiles (Structural + Grounding Gates)
+    task_type: str = "custom"  # "research"|"analysis"|"strategy"|"writing"|"planning"|"custom"
 
     def to_prompt(self) -> str:
         """Convert contract to system prompt injection for the sub-agent."""
@@ -115,6 +121,9 @@ CRITICAL RULES:
             "constraints": self.constraints,
             "max_retries": self.max_retries,
             "timeout_seconds": self.timeout_seconds,
+            "verification_mode": self.verification_mode,
+            "council_size": self.council_size,
+            "task_type": self.task_type,
         }
 
 
