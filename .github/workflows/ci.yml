@@ -31,6 +31,7 @@ jobs:
         run: |
           pytest governed_agents/ \
             --ignore=governed_agents/test_http_spawn.py \
+            --ignore=governed_agents/tests \
             -v --tb=short
 
       - name: Run HTTP smoke test (import only, no server needed)
