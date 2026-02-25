@@ -4,7 +4,7 @@ Defines the "legal code" between Orchestrator and Sub-Agent.
 """
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
+from typing import Literal, Optional
 import json
 import time
 import uuid
@@ -23,6 +23,22 @@ class BlockerCategory(Enum):
     LOGIC_ERROR = "logic_error"
     DEPENDENCY_MISSING = "dependency_missing"
     TIMEOUT = "timeout"
+
+
+@dataclass
+class ContextEntry:
+    """Single multi-turn context item with provenance metadata."""
+    message_id: str
+    timestamp: str
+    content: str
+    source_type: Literal[
+        "user_message",
+        "uploaded_file",
+        "pasted_data",
+        "upstream_dependency",
+    ]
+    upstream_task_id: Optional[str] = None
+    upstream_task_name: Optional[str] = None
 
 
 @dataclass
@@ -47,6 +63,25 @@ class TaskContract:
     council_prompt: Optional[str] = None       # custom reviewer instructions (optional)
     # Task-Type Profiles (Structural + Grounding Gates)
     task_type: str = "custom"  # "research"|"analysis"|"strategy"|"writing"|"planning"|"custom"
+    # v7.2: structured context and policy flags
+    user_provided_context: list[ContextEntry] = field(default_factory=list)
+    max_context_tokens: int = 8000
+    high_stakes: bool = False
+
+    def __post_init__(self):
+        """Migrate legacy context payloads for backward compatibility."""
+        if isinstance(self.user_provided_context, str):
+            content = self.user_provided_context.strip()
+            self.user_provided_context = []
+            if content:
+                self.user_provided_context.append(
+                    ContextEntry(
+                        message_id="legacy",
+                        timestamp="",
+                        content=content,
+                        source_type="user_message",
+                    )
+                )
 
     def to_prompt(self) -> str:
         """Convert contract to system prompt injection for the sub-agent."""
@@ -109,6 +144,22 @@ CRITICAL RULES:
 """
 
     def to_dict(self) -> dict:
+        context_entries: list[dict] = []
+        for entry in self.user_provided_context:
+            if isinstance(entry, ContextEntry):
+                context_entries.append(
+                    {
+                        "message_id": entry.message_id,
+                        "timestamp": entry.timestamp,
+                        "content": entry.content,
+                        "source_type": entry.source_type,
+                        "upstream_task_id": entry.upstream_task_id,
+                        "upstream_task_name": entry.upstream_task_name,
+                    }
+                )
+            elif isinstance(entry, dict):
+                context_entries.append(entry)
+
         return {
             "task_id": self.task_id,
             "objective": self.objective,
@@ -124,6 +175,9 @@ CRITICAL RULES:
             "verification_mode": self.verification_mode,
             "council_size": self.council_size,
             "task_type": self.task_type,
+            "user_provided_context": context_entries,
+            "max_context_tokens": self.max_context_tokens,
+            "high_stakes": self.high_stakes,
         }
 
 
@@ -149,6 +203,7 @@ class TaskResult:
     verification_passed: bool = False
     retry_count: int = 0
     elapsed_seconds: float = 0.0
+    task_score: float = 0.0
 
     @classmethod
     def from_agent_output(cls, raw: str, task_id: str) -> "TaskResult":

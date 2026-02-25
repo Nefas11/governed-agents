@@ -25,7 +25,7 @@ DEFAULT_DB_PATH = os.environ.get(
     str(Path.home() / ".governed_agents" / "reputation.db")
 )
 DEFAULT_WORK_DIR = os.environ.get("GOVERNED_WORK_DIR", "/tmp/governed")
-WORKSPACE = Path(os.environ.get("OPENCLAW_WORKSPACE", Path.cwd()))
+WORKSPACE = Path(os.environ.get("OPENCLAW_WORKSPACE", Path(__file__).resolve().parent.parent))
 CODEX53_CLI = shutil.which("codex") or os.environ.get("CODEX_CLI", "codex")
 
 

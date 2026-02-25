@@ -33,8 +33,22 @@ def test_endpoint_reachable():
     print(f"✅ Command Center reachable (HTTP {code})")
 
 
-def test_spawn_endpoint_exists():
+def _resolve_token() -> str:
+    """Read auth token from env vars or .env fallback."""
     token = os.environ.get("GOVERNED_AUTH_TOKEN") or os.environ.get("AUTH_TOKEN", "")
+    if not token:
+        env_path = Path(__file__).resolve().parent.parent / "command-center" / ".env"
+        if env_path.exists():
+            for line in env_path.read_text().splitlines():
+                line = line.strip()
+                if line.startswith(("API_TOKEN=", "CC_AUTH_TOKEN=", "AUTH_TOKEN=")):
+                    token = line.split("=", 1)[1].strip().strip('"').strip("'")
+                    break
+    return token
+
+
+def test_spawn_endpoint_exists():
+    token = _resolve_token()
     r = subprocess.run([
         "curl", "-s", "-o", "/dev/null", "-w", "%{http_code}",
         "-X", "POST", f"{CC_URL}/api/governed/spawn",
