@@ -121,9 +121,11 @@ def test_supervised_prompt_has_notice():
     model = "test-supervised-consequences"
     # Drive to supervised (0.4 < R <= 0.6)
     update_reputation(model, "task", 0.0)  # reset via multiple calls
-    # Set reputation manually to 0.48
+    # Set reputation manually to 0.48 — use temp DB to avoid path dependency
     import sqlite3
-    db_path = os.path.join(os.path.dirname(__file__), "..", ".state", "governed_agents", "reputation.db")
+    tmp_dir = tempfile.mkdtemp()
+    db_path = os.path.join(tmp_dir, "reputation.db")
+    init_db(db_path)
     conn = sqlite3.connect(db_path)
     conn.execute("INSERT OR REPLACE INTO agents (agent_id, reputation, total_tasks, successes, honest_failures, silent_failures, created_at, updated_at) VALUES (?, 0.48, 3, 1, 1, 1, datetime('now'), datetime('now'))", (model,))
     conn.commit()
