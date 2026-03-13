@@ -4,7 +4,9 @@ Gate 5 of the Governed Agents verification pipeline.
 """
 from dataclasses import dataclass, field
 from typing import Optional
+import html
 import json
+import re
 
 
 @dataclass
@@ -60,14 +62,14 @@ def generate_reviewer_prompt(
     agent_output: str,
     custom_prompt: Optional[str] = None,
 ) -> str:
-    # NOTE: agent_output is injected unfiltered — prompt injection risk if the
-    # reviewed agent embeds adversarial instructions in its output.
-    # Mitigation: use a stronger model for reviewers than for the task agent.
+    # Escape raw agent output to avoid markup/prompt injection in downstream reviewers.
     criteria_text = "\n".join(f"- {c}" for c in criteria)
     instruction = custom_prompt or (
         "You are an independent reviewer. Be precise and critical. "
         "An honest rejection is more valuable than a false approval."
     )
+    safe_output = html.escape(agent_output)
+    safe_output = re.sub(r"IGNORE|FORGET|OVERRIDE", "[REDACTED]", safe_output, flags=re.IGNORECASE)
     return f"""COUNCIL REVIEW REQUEST
 
 {instruction}
@@ -78,7 +80,7 @@ Acceptance Criteria:
 {criteria_text}
 
 --- OUTPUT TO REVIEW ---
-{agent_output}
+{safe_output}
 ---
 
 Return ONLY this JSON (no other text):

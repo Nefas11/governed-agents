@@ -18,12 +18,9 @@ from typing import Optional, Any
 from .contract import TaskContract, TaskResult, TaskStatus
 from .orchestrator import score_result
 from .verification import run_full_verification
-from .reputation import init_db, get_reputation, update_reputation, get_supervision_level
+from .reputation import init_db, get_reputation, update_reputation, get_supervision_level, resolve_db_path
 
-DEFAULT_DB_PATH = os.environ.get(
-    "GOVERNED_DB_PATH",
-    str(Path.home() / ".governed_agents" / "reputation.db")
-)
+DEFAULT_DB_PATH = str(resolve_db_path())
 DEFAULT_WORK_DIR = os.environ.get("GOVERNED_WORK_DIR", "/tmp/governed")
 WORKSPACE = Path(os.environ.get("OPENCLAW_WORKSPACE", Path(__file__).resolve().parent.parent))
 CODEX53_CLI = shutil.which("codex") or os.environ.get("CODEX_CLI", "codex")

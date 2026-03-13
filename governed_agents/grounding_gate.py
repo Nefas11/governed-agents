@@ -3,10 +3,28 @@ Grounding Gate — Layer 2 semi-deterministic checks for non-coding task verific
 Uses stdlib only (no external deps). Runs after Structural Gate, before LLM Council.
 """
 from dataclasses import dataclass, field
-import re
-import urllib.request
-import urllib.error
 from datetime import datetime
+import ipaddress
+import logging
+import re
+import urllib.error
+import urllib.request
+from urllib.parse import urlparse
+
+
+logger = logging.getLogger(__name__)
+
+IP_BLOCKLIST = [
+    ipaddress.ip_network("169.254.0.0/16"),
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("127.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+]
+
+
+def _get_blocked_ips() -> list[ipaddress._BaseNetwork]:
+    return IP_BLOCKLIST
 
 
 @dataclass
@@ -33,17 +51,42 @@ def _extract_urls(text: str) -> list[str]:
     return re.findall(r"https?://[^\s\)\]\>\"\']+", text)[:5]  # max 5
 
 
-def _check_url(url: str, timeout: int = 3) -> bool:
-    try:
-        req = urllib.request.Request(
-            url,
-            method="HEAD",
-            headers={"User-Agent": "governed-agents-verifier/1.0"},
-        )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return resp.status < 400
-    except Exception:
+def _check_url(url: str, timeout: int = 3, max_retries: int = 2) -> bool:
+    parsed = urlparse(url)
+    if parsed.scheme.lower() == "file":
+        logger.warning("Blocked file URL in grounding gate: %s", url)
         return False
+    if parsed.scheme and parsed.scheme.lower() not in ("http", "https"):
+        logger.warning("Blocked non-HTTP URL in grounding gate: %s", url)
+        return False
+    if not parsed.hostname:
+        logger.warning("Blocked URL without hostname in grounding gate: %s", url)
+        return False
+
+    try:
+        host_ip = ipaddress.ip_address(parsed.hostname)
+    except ValueError:
+        host_ip = None
+
+    if host_ip:
+        blocked_ranges = _get_blocked_ips()
+        if any(host_ip in net for net in blocked_ranges):
+            logger.warning("Blocked private/link-local IP in grounding gate: %s", url)
+            return False
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            logger.info("HTTP HEAD %s attempt %d/%d", url, attempt, max_retries)
+            req = urllib.request.Request(
+                url,
+                method="HEAD",
+                headers={"User-Agent": "governed-agents-verifier/1.0"},
+            )
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return resp.status < 400
+        except Exception:
+            continue
+    return False
 
 
 def run_grounding_gate(output: str, profile: dict) -> GroundingResult:
@@ -55,6 +98,8 @@ def run_grounding_gate(output: str, profile: dict) -> GroundingResult:
         if check == "url_reachable":
             urls = _extract_urls(output)
             if urls:
+                for url in urls:
+                    logger.info("Grounding gate probing URL: %s", url)
                 dead = [u for u in urls if not _check_url(u)]
                 if dead:
                     failures.append(

@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from governed_agents.contract import TaskContract
 from governed_agents.openclaw_wrapper import spawn_governed, _update_reputation_direct
+from governed_agents.reputation import resolve_db_path
 
 
 def test_import():
@@ -21,8 +22,7 @@ def test_reputation_direct():
     """DB-Write ohne CC."""
     _update_reputation_direct("test-agent", "test-123", 1.0, "SUCCESS", "unit test")
 
-    db = os.environ.get("GOVERNED_DB_PATH", str(Path.home() / ".governed_agents" / "reputation.db"))
-    conn = sqlite3.connect(db)
+    conn = sqlite3.connect(str(resolve_db_path()))
     row = conn.execute("SELECT task_id FROM task_log WHERE task_id='test-123'").fetchone()
     conn.close()
     assert row is not None, "Task nicht in DB!"

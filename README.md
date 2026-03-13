@@ -6,6 +6,16 @@ Prevents hallucinated success ("I did it!") by verifying claims independently be
 
 ---
 
+## Runtime Dependencies
+
+- codex: spawns the Codex CLI for governed sub-agent execution.
+- openclaw: spawns OpenClaw agent sessions for non-code or fallback execution.
+- git: initializes temporary repos for Codex task runs.
+- pytest: executes verification test suites.
+- ruff: optional lint gate (fast Python linter).
+- flake8: optional lint gate (legacy Python linter).
+- pylint: optional lint gate (deep static analysis).
+
 ## The Problem
 
 AI agents hallucinate success. They say "Done!" when files are missing, tests fail, or the output is empty. Without independent verification, a reputation system just rewards confident lying.

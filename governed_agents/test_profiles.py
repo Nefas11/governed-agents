@@ -1,6 +1,6 @@
 from governed_agents.profiles import TASK_PROFILES, get_profile
 from governed_agents.structural_gate import run_structural_gate
-from governed_agents.grounding_gate import run_grounding_gate
+from governed_agents.grounding_gate import run_grounding_gate, _check_url
 from governed_agents.verification import run_non_coding_verification
 from governed_agents.contract import TaskContract
 
@@ -96,6 +96,11 @@ def test_grounding_warnings_dont_fail():
     result = run_grounding_gate("This happened on 2010-01-01 long ago.", profile)
     assert result.passed is True  # warning only, not failure
     assert len(result.warnings) > 0
+
+
+def test_ssrf_internal_ip_rejected():
+    payload = "169.254.169.254/metadata"
+    assert _check_url(payload) is False
 
 
 # ── Verification Pipeline ─────────────────────────────────────────────

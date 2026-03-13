@@ -6,7 +6,8 @@ metadata:
     "openclaw":
       {
         "emoji": "🛡️",
-        "requires": { "bins": ["python3"] },
+        "type": "executable / with-install-spec",
+        "requires": { "bins": ["codex", "openclaw", "git", "pytest", "ruff", "flake8", "pylint"] },
         "install":
           [
             {
@@ -18,6 +19,9 @@ metadata:
           ],
       },
   }
+capabilities:
+  network-capable: true
+  subprocess-capable: true
 ---
 
 # Governed Agents
@@ -25,6 +29,10 @@ metadata:
 Deterministic verification + reputation scoring for AI sub-agents. Prevents hallucinated success ("I did it!") by verifying claims independently before updating the agent's score.
 
 **Pure Python stdlib — zero external dependencies.**
+
+## Capabilities
+
+Spawns external CLIs (codex, openclaw, git, pytest) and makes HTTP HEAD requests.
 
 ## When to Use
 

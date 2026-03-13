@@ -2,13 +2,45 @@
 Reputation Ledger — persistent scoring for agent configurations.
 SQLite-backed, survives restarts.
 """
+import json
+import os
 import sqlite3
 import time
-import json
 from pathlib import Path
 
 
-DB_PATH = Path.home() / ".openclaw/workspace/.state/governed_agents/reputation.db"
+def _dir_writable(path: Path) -> bool:
+    try:
+        path.mkdir(parents=True, exist_ok=True, mode=0o700)
+        test_file = path / ".governed_write_test"
+        with open(test_file, "w") as handle:
+            handle.write("1")
+        test_file.unlink()
+        return True
+    except OSError:
+        return False
+
+
+def resolve_db_path(db_path: str | None = None) -> Path:
+    """Resolve the reputation DB path with env override and safe fallback."""
+    if db_path:
+        candidate = Path(db_path)
+        if _dir_writable(candidate.parent):
+            return candidate
+        return Path("/tmp/governed_agents/reputation.db")
+    env = os.environ.get("GOVERNED_DB_PATH")
+    if env:
+        candidate = Path(env)
+        if _dir_writable(candidate.parent):
+            return candidate
+        return Path("/tmp/governed_agents/reputation.db")
+    default = Path.home() / ".governed_agents" / "reputation.db"
+    if _dir_writable(default.parent):
+        return default
+    return Path("/tmp/governed_agents/reputation.db")
+
+
+DB_PATH = resolve_db_path()
 
 # Scoring constants
 SCORE_FIRST_PASS = 1.0      # Success on first try
@@ -24,8 +56,8 @@ ALPHA = 0.1  # Learning rate for EMA
 
 def init_db(db_path: str = None):
     """Create tables if they don't exist."""
-    resolved = Path(db_path) if db_path else DB_PATH
-    resolved.parent.mkdir(parents=True, exist_ok=True)
+    resolved = resolve_db_path(db_path)
+    os.makedirs(resolved.parent, mode=0o700, exist_ok=True)
     conn = sqlite3.connect(str(resolved))
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
