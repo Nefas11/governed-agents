@@ -22,8 +22,10 @@ from .reputation import init_db, get_reputation, update_reputation, get_supervis
 
 DEFAULT_DB_PATH = str(resolve_db_path())
 DEFAULT_WORK_DIR = os.environ.get("GOVERNED_WORK_DIR", "/tmp/governed")
-WORKSPACE = Path(os.environ.get("OPENCLAW_WORKSPACE", Path(__file__).resolve().parent.parent))
+WORKSPACE = Path(os.environ.get("OPENCLAW_WORKSPACE", Path(__file__).resolve().parent.parent)).resolve()
 CODEX53_CLI = shutil.which("codex") or os.environ.get("CODEX_CLI", "codex")
+
+assert WORKSPACE.is_relative_to(Path.home()) or WORKSPACE.is_relative_to(Path("/tmp"))
 
 
 def _find_tool(name: str):
