@@ -14,6 +14,18 @@ from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
+IP_BLOCKLIST = [
+    ipaddress.ip_network("169.254.0.0/16"),
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("127.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+]
+
+
+def _get_blocked_ips() -> list[ipaddress._BaseNetwork]:
+    return IP_BLOCKLIST
+
 
 @dataclass
 class GroundingResult:
@@ -57,11 +69,7 @@ def _check_url(url: str, timeout: int = 3, max_retries: int = 2) -> bool:
         host_ip = None
 
     if host_ip:
-        blocked_ranges = [
-            ipaddress.ip_network("169.254.0.0/16"),
-            ipaddress.ip_network("10.0.0.0/8"),
-            ipaddress.ip_network("127.0.0.0/8"),
-        ]
+        blocked_ranges = _get_blocked_ips()
         if any(host_ip in net for net in blocked_ranges):
             logger.warning("Blocked private/link-local IP in grounding gate: %s", url)
             return False
