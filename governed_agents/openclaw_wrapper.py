@@ -166,14 +166,15 @@ def _build_subprocess_env(engine: str, extra: dict) -> dict:
         env.update(extra)
         return env
 
-    if engine == "openclaw":
-        allowlist = _OPENCLAW_ALLOWED_VARS
-    else:
-        allowlist = _CODEX_ALLOWED_VARS
-
-    filtered = {k: v for k, v in os.environ.items() if k in allowlist}
-    filtered.update(extra)
-    return filtered
+    minimal_env = {
+        "PATH": os.environ.get("PATH", ""),
+        "NO_COLOR": os.environ.get("NO_COLOR", "1"),
+    }
+    if "PATH" in extra:
+        minimal_env["PATH"] = extra["PATH"]
+    if "NO_COLOR" in extra:
+        minimal_env["NO_COLOR"] = extra["NO_COLOR"]
+    return minimal_env
 
 
 def spawn_governed(

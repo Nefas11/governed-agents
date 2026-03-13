@@ -86,3 +86,35 @@ def test_validate_metadata_script_exits_zero():
         env=env,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_linters_marked_optional_in_manifest():
+    manifest = _load_manifest()
+    requires = manifest.get("requires", {})
+    bins = {item["name"]: item for item in requires.get("bins", [])}
+    assert bins.get("codex", {}).get("optional") is False
+    assert bins.get("git", {}).get("optional") is False
+    assert bins.get("ruff", {}).get("optional") is True
+    assert bins.get("flake8", {}).get("optional") is True
+    assert bins.get("pylint", {}).get("optional") is True
+
+
+def test_env_vars_declared_in_manifest():
+    manifest = _load_manifest()
+    requires = manifest.get("requires", {})
+    envs = {item["name"]: item for item in requires.get("env", [])}
+    expected = {
+        "OPENCLAW_WORKSPACE",
+        "GOVERNED_WORK_DIR",
+        "GOVERNED_DB_PATH",
+        "GOVERNED_AUTH_TOKEN",
+        "CODEX_CLI",
+        "OPENAI_API_KEY",
+        "GOVERNED_NO_NETWORK",
+        "GOVERNED_NO_DB",
+        "GOVERNED_DB_MODE",
+        "GOVERNED_PASS_ENV",
+    }
+    assert expected.issubset(envs.keys())
+    for name in expected:
+        assert envs[name].get("optional") is True
