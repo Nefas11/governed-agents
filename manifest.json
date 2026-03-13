@@ -1,0 +1,17 @@
+{
+  "name": "governed-agents",
+  "description": "Deterministic verification + reputation scoring for AI sub-agents.",
+  "install": {
+    "kind": "script",
+    "script": "install.sh"
+  },
+  "filesystem_writes": [
+    "~/.openclaw/workspace/.state/governed_agents/"
+  ],
+  "capabilities": [
+    "persistent_db_writes",
+    "external_cli_execution",
+    "network_requests"
+  ],
+  "network_access": true
+}

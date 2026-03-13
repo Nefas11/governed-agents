@@ -1,6 +1,10 @@
 ---
 name: governed-agents
 description: "Deterministic verification + reputation scoring for AI sub-agents. Prevents hallucinated success via 4 code gates (files, tests, lint, AST) and a 3-layer pipeline (Structural → Grounding → LLM Council) for open-ended tasks."
+install: {"kind": "script", "script": "install.sh"}
+filesystem_writes: ["~/.openclaw/workspace/.state/governed_agents/"]
+capabilities: ["persistent_db_writes", "external_cli_execution", "network_requests"]
+network_access: true
 metadata:
   {
     "openclaw":
@@ -19,7 +23,7 @@ metadata:
           ],
       },
   }
-capabilities:
+capability_flags:
   network-capable: true
   subprocess-capable: true
 ---
