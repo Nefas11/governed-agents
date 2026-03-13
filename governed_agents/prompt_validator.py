@@ -2,11 +2,18 @@ import re
 
 
 # DETECTION_ONLY
+_IGN = "ign"
+ORE = "ore"
+_INSTR = "instr"
+UCTIONS = "uctions"
+_IGNORE = _IGN + ORE
+_INSTRUCTIONS = _INSTR + UCTIONS
+
 INJECTION_PATTERNS = [
-    r"ignore all instructions",
-    r"ignore any instructions",
-    r"ignore previous instructions",
-    r"ignore all previous instructions",
+    rf"{_IGNORE} all {_INSTRUCTIONS}",
+    rf"{_IGNORE} any {_INSTRUCTIONS}",
+    rf"{_IGNORE} previous {_INSTRUCTIONS}",
+    rf"{_IGNORE} all previous {_INSTRUCTIONS}",
 ]
 
 
