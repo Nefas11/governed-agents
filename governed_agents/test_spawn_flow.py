@@ -5,6 +5,8 @@ Simuliert den vollständigen governed agent flow ohne echtes sessions_spawn.
 """
 import subprocess
 import sys
+import tempfile
+import os
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -14,6 +16,9 @@ from governed_agents.reputation import get_task_history, get_agent_stats, init_d
 
 
 def test_full_flow():
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+        db_path = f.name
+    os.environ["GOVERNED_DB_PATH"] = db_path
     init_db()
 
     # 1. Orchestrator erstellen
