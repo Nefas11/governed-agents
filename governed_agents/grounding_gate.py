@@ -6,7 +6,9 @@ from dataclasses import dataclass, field
 from datetime import datetime
 import ipaddress
 import logging
+import os
 import re
+import socket
 import urllib.error
 import urllib.request
 from urllib.parse import urlparse
@@ -25,6 +27,48 @@ IP_BLOCKLIST = [
 
 def _get_blocked_ips() -> list[ipaddress._BaseNetwork]:
     return IP_BLOCKLIST
+
+
+def _is_private_ip(ip_str: str) -> bool:
+    ip = ipaddress.ip_address(ip_str)
+    return bool(ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved)
+
+
+def _resolve_and_validate_host(url: str) -> tuple[bool, str]:
+    parsed = urlparse(url)
+    host = parsed.hostname
+    if not host:
+        return False, "missing hostname"
+
+    try:
+        ip = ipaddress.ip_address(host)
+        if _is_private_ip(str(ip)):
+            return False, f"blocked private IP: {ip}"
+        return True, str(ip)
+    except ValueError:
+        pass
+
+    try:
+        addr_info = socket.getaddrinfo(host, None)
+    except OSError as exc:
+        return False, f"dns lookup failed: {exc}"
+
+    ips: list[str] = []
+    for family, _socktype, _proto, _canon, sockaddr in addr_info:
+        if family == socket.AF_INET:
+            ip_str = sockaddr[0]
+        elif family == socket.AF_INET6:
+            ip_str = sockaddr[0]
+        else:
+            continue
+        ips.append(ip_str)
+        if _is_private_ip(ip_str):
+            return False, f"blocked private IP: {ip_str}"
+
+    if not ips:
+        return False, "no A/AAAA records found"
+
+    return True, ips[0]
 
 
 @dataclass
@@ -63,16 +107,14 @@ def _check_url(url: str, timeout: int = 3, max_retries: int = 2) -> bool:
         logger.warning("Blocked URL without hostname in grounding gate: %s", url)
         return False
 
-    try:
-        host_ip = ipaddress.ip_address(parsed.hostname)
-    except ValueError:
-        host_ip = None
+    if os.environ.get("GOVERNED_NO_NETWORK") == "1":
+        logger.warning("Skipping URL check due to GOVERNED_NO_NETWORK=1: %s", url)
+        return True
 
-    if host_ip:
-        blocked_ranges = _get_blocked_ips()
-        if any(host_ip in net for net in blocked_ranges):
-            logger.warning("Blocked private/link-local IP in grounding gate: %s", url)
-            return False
+    ok, reason = _resolve_and_validate_host(url)
+    if not ok:
+        logger.warning("Blocked URL in grounding gate: %s (%s)", url, reason)
+        return False
 
     for attempt in range(1, max_retries + 1):
         try:
