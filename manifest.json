@@ -1,5 +1,6 @@
 {
   "name": "governed-agents",
+  "type": "executable",
   "description": "Deterministic verification + reputation scoring for AI sub-agents.",
   "install": {
     "kind": "script",
