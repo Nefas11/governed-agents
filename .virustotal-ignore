@@ -1,0 +1,4 @@
+# VirusTotal ignore list
+# Defensive detection logic can trigger generic signature matches.
+# This repository contains security-focused prompt validation code only.
+# No malware, exploit payloads, or obfuscated malicious content are present.
