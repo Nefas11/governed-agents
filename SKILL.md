@@ -19,18 +19,8 @@ metadata:
         "emoji": "🛡️",
         "type": "executable/with-install",
         "source": "https://github.com/Nefas11/governed-agents",
-        "requires":
-          {
-            "bins":
-              [
-                { "name": "codex", "optional": false },
-                { "name": "git", "optional": false },
-                { "name": "pytest", "optional": false },
-                { "name": "ruff", "optional": true },
-                { "name": "flake8", "optional": true },
-                { "name": "pylint", "optional": true },
-              ],
-          },
+        "requires": { "bins": ["codex", "git", "pytest"] },
+        "optional_bins": ["ruff", "flake8", "pylint"],
         "install":
           [
             {

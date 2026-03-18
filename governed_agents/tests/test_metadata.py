@@ -91,12 +91,18 @@ def test_validate_metadata_script_exits_zero():
 def test_linters_marked_optional_in_manifest():
     manifest = _load_manifest()
     requires = manifest.get("requires", {})
-    bins = {item["name"]: item for item in requires.get("bins", [])}
-    assert bins.get("codex", {}).get("optional") is False
-    assert bins.get("git", {}).get("optional") is False
-    assert bins.get("ruff", {}).get("optional") is True
-    assert bins.get("flake8", {}).get("optional") is True
-    assert bins.get("pylint", {}).get("optional") is True
+    bins = requires.get("bins", [])
+    optional_bins = requires.get("optional_bins", [])
+    # Required bins are simple strings in the bins array
+    assert "codex" in bins
+    assert "git" in bins
+    # Linters are in optional_bins, not in required bins
+    assert "ruff" in optional_bins
+    assert "flake8" in optional_bins
+    assert "pylint" in optional_bins
+    assert "ruff" not in bins
+    assert "flake8" not in bins
+    assert "pylint" not in bins
 
 
 def test_env_vars_declared_in_manifest():
