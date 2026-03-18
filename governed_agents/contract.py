@@ -84,7 +84,7 @@ class TaskContract:
                 )
 
     def to_prompt(self) -> str:
-        """Convert contract to system prompt injection for the sub-agent."""
+        """Format contract as a binding instruction prompt for the sub-agent."""
         criteria = "\n".join(f"  - {c}" for c in self.acceptance_criteria)
         constraints = "\n".join(f"  - {c}" for c in self.constraints)
         files = "\n".join(f"  - {f}" for f in self.required_files)

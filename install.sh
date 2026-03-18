@@ -13,7 +13,7 @@ TARGET="$STATE_DIR/governed_agents"
 
 validate_workspace_path() {
     local resolved
-    resolved="$(realpath -m "${STATE_DIR}")"
+    resolved="$(python3 -c "from pathlib import Path; print(Path('${STATE_DIR}').resolve())")"
     if [[ "$resolved" != "$HOME"* ]]; then
         echo "ERROR: workspace must resolve under \$HOME. Got: $resolved" >&2
         exit 1
@@ -34,7 +34,7 @@ validate_workspace_path() {
     fi
 
     local owner
-    owner="$(stat -c '%u' "$parent_dir")"
+    owner="$(python3 -c "import os; print(os.stat('$parent_dir').st_uid)")"
     if [ "$owner" != "$(id -u)" ]; then
         echo "ERROR: workspace parent not owned by current user: $parent_dir" >&2
         exit 1

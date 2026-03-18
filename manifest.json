@@ -13,5 +13,23 @@
     "external_cli_execution",
     "network_requests"
   ],
-  "network_access": true
+  "network_access": true,
+  "env_vars": {
+    "OPENCLAW_WORKSPACE": {
+      "required": false,
+      "description": "Workspace root directory (default: ~/.openclaw/workspace)"
+    },
+    "GOVERNED_WORK_DIR": {
+      "required": false,
+      "description": "Temporary working directory for task execution (default: /tmp/governed)"
+    },
+    "GOVERNED_DB_PATH": {
+      "required": false,
+      "description": "Path to SQLite reputation database (default: .state/governed_agents/reputation.db)"
+    },
+    "GOVERNED_AUTH_TOKEN": {
+      "required": false,
+      "description": "Bearer token for HTTP API mode (spawn_governed_http)"
+    }
+  }
 }
