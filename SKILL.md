@@ -1,6 +1,8 @@
 ---
 name: governed-agents
 description: "Deterministic verification + reputation scoring for AI sub-agents. Prevents hallucinated success via 4 code gates (files, tests, lint, AST) and a 3-layer pipeline (Structural → Grounding → LLM Council) for open-ended tasks."
+source: https://github.com/Nefas11/governed-agents
+homepage: https://github.com/Nefas11/governed-agents
 install: {"kind": "script", "script": "install.sh"}
 filesystem_writes: ["~/.openclaw/workspace/.state/governed_agents/"]
 capabilities: ["persistent_db_writes", "external_cli_execution", "network_requests"]
@@ -15,8 +17,20 @@ metadata:
     "openclaw":
       {
         "emoji": "🛡️",
-        "type": "executable",
-        "requires": { "bins": ["codex", "openclaw", "git", "pytest", "ruff", "flake8", "pylint"] },
+        "type": "executable/with-install",
+        "source": "https://github.com/Nefas11/governed-agents",
+        "requires":
+          {
+            "bins":
+              [
+                { "name": "codex", "optional": false },
+                { "name": "git", "optional": false },
+                { "name": "pytest", "optional": false },
+                { "name": "ruff", "optional": true },
+                { "name": "flake8", "optional": true },
+                { "name": "pylint", "optional": true },
+              ],
+          },
         "install":
           [
             {

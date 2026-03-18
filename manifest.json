@@ -1,7 +1,9 @@
 {
   "name": "governed-agents",
-  "type": "executable",
+  "type": "executable/with-install",
   "description": "Deterministic verification + reputation scoring for AI sub-agents.",
+  "source": "https://github.com/Nefas11/governed-agents",
+  "homepage": "https://github.com/Nefas11/governed-agents",
   "install": {
     "kind": "script",
     "script": "install.sh"
@@ -19,6 +21,7 @@
     "bins": [
       { "name": "codex", "optional": false },
       { "name": "git", "optional": false },
+      { "name": "pytest", "optional": false },
       { "name": "ruff", "optional": true },
       { "name": "flake8", "optional": true },
       { "name": "pylint", "optional": true }

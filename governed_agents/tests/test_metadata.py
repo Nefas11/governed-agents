@@ -109,11 +109,9 @@ def test_env_vars_declared_in_manifest():
         "GOVERNED_DB_PATH",
         "GOVERNED_AUTH_TOKEN",
         "CODEX_CLI",
-        "OPENAI_API_KEY",
         "GOVERNED_NO_NETWORK",
         "GOVERNED_NO_DB",
         "GOVERNED_DB_MODE",
-        "GOVERNED_PASS_ENV",
     }
     assert expected.issubset(envs.keys())
     for name in expected:

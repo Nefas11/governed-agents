@@ -52,7 +52,7 @@ def test_no_raw_injection_strings_in_source():
 
 def test_security_md_has_secret_leak_prevention_section():
     text = (REPO_ROOT / "SECURITY.md").read_text(encoding="utf-8")
-    assert "Secret Leak Prevention" in text
+    assert "Subprocess Credential Isolation" in text
 
 
 def test_security_md_has_no_raw_injection_examples():
