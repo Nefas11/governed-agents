@@ -27,7 +27,12 @@ WORKSPACE = Path(os.environ.get("OPENCLAW_WORKSPACE", Path(__file__).resolve().p
 CODEX53_CLI = shutil.which("codex") or os.environ.get("CODEX_CLI", "codex")
 logger = logging.getLogger(__name__)
 
-assert WORKSPACE.is_relative_to(Path.home()) or WORKSPACE.is_relative_to(Path("/tmp"))
+import tempfile as _tf
+_SAFE_ROOTS = [Path.home(), Path("/tmp").resolve(), Path(_tf.gettempdir()).resolve()]
+assert any(WORKSPACE.is_relative_to(r) for r in _SAFE_ROOTS), (
+    f"WORKSPACE must resolve under $HOME or a temp dir, got: {WORKSPACE}"
+)
+del _tf, _SAFE_ROOTS
 
 _CODEX_ALLOWED_VARS = {
     "HOME",
@@ -35,7 +40,6 @@ _CODEX_ALLOWED_VARS = {
     "TMPDIR",
     "LANG",
     "LC_ALL",
-    "OPENAI_API_KEY",
     "NO_COLOR",
     "GOVERNED_WORK_DIR",
     "GOVERNED_DB_PATH",
@@ -160,21 +164,19 @@ def _build_prompt(contract: TaskContract, agent_id: str, model: str, rep: float,
 
 
 def _build_subprocess_env(engine: str, extra: dict) -> dict:
-    if os.environ.get("GOVERNED_PASS_ENV") == "1":
-        logger.warning("GOVERNED_PASS_ENV=1 set; passing full environment to subprocess.")
-        env = os.environ.copy()
-        env.update(extra)
-        return env
+    """Build a filtered environment for subprocess execution.
 
-    minimal_env = {
-        "PATH": os.environ.get("PATH", ""),
-        "NO_COLOR": os.environ.get("NO_COLOR", "1"),
-    }
-    if "PATH" in extra:
-        minimal_env["PATH"] = extra["PATH"]
-    if "NO_COLOR" in extra:
-        minimal_env["NO_COLOR"] = extra["NO_COLOR"]
-    return minimal_env
+    Always uses an explicit allowlist — no bypass mechanism exists.
+    See SECURITY.md for rationale.
+    """
+    if engine == "openclaw":
+        allowlist = _OPENCLAW_ALLOWED_VARS
+    else:
+        allowlist = _CODEX_ALLOWED_VARS
+
+    filtered = {k: v for k, v in os.environ.items() if k in allowlist}
+    filtered.update(extra)
+    return filtered
 
 
 def spawn_governed(

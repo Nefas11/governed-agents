@@ -58,6 +58,7 @@ def test_openclaw_subprocess_env_filtered(monkeypatch, tmp_path):
 
 def test_secret_keys_not_in_subprocess_env(monkeypatch, tmp_path):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "secret")
+    monkeypatch.setenv("OPENAI_API_KEY", "secret")
     module = _setup_module(monkeypatch, tmp_path)
     calls = []
 
@@ -75,11 +76,14 @@ def test_secret_keys_not_in_subprocess_env(monkeypatch, tmp_path):
 
     for env in calls:
         assert "ANTHROPIC_API_KEY" not in env
+        assert "OPENAI_API_KEY" not in env
 
 
-def test_governed_pass_env_escape_hatch(monkeypatch, tmp_path):
+def test_pass_env_flag_is_ignored(monkeypatch, tmp_path):
+    """GOVERNED_PASS_ENV=1 must NOT bypass the allowlist (escape hatch removed)."""
     monkeypatch.setenv("GOVERNED_PASS_ENV", "1")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "secret")
+    monkeypatch.setenv("OPENAI_API_KEY", "secret")
     module = _setup_module(monkeypatch, tmp_path)
     calls = []
 
@@ -95,7 +99,12 @@ def test_governed_pass_env_escape_hatch(monkeypatch, tmp_path):
     contract = TaskContract(objective="x", acceptance_criteria=[], required_files=[])
     module.spawn_governed(contract, engine="codex53")
 
-    assert "ANTHROPIC_API_KEY" in calls[-1]
+    # Even with GOVERNED_PASS_ENV=1, secrets must NOT be in subprocess env
+    for env in calls:
+        assert "ANTHROPIC_API_KEY" not in env
+        assert "OPENAI_API_KEY" not in env
+        for key in env:
+            assert key in module._CODEX_ALLOWED_VARS
 
 
 def test_git_subprocess_inherits_minimal_env(monkeypatch, tmp_path):

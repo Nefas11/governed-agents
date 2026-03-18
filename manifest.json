@@ -17,68 +17,21 @@
   "network_access": true,
   "requires": {
     "bins": [
-      {
-        "name": "codex",
-        "optional": false
-      },
-      {
-        "name": "git",
-        "optional": false
-      },
-      {
-        "name": "ruff",
-        "optional": true
-      },
-      {
-        "name": "flake8",
-        "optional": true
-      },
-      {
-        "name": "pylint",
-        "optional": true
-      }
+      { "name": "codex", "optional": false },
+      { "name": "git", "optional": false },
+      { "name": "ruff", "optional": true },
+      { "name": "flake8", "optional": true },
+      { "name": "pylint", "optional": true }
     ],
     "env": [
-      {
-        "name": "OPENCLAW_WORKSPACE",
-        "optional": true
-      },
-      {
-        "name": "GOVERNED_WORK_DIR",
-        "optional": true
-      },
-      {
-        "name": "GOVERNED_DB_PATH",
-        "optional": true
-      },
-      {
-        "name": "GOVERNED_AUTH_TOKEN",
-        "optional": true
-      },
-      {
-        "name": "CODEX_CLI",
-        "optional": true
-      },
-      {
-        "name": "OPENAI_API_KEY",
-        "optional": true
-      },
-      {
-        "name": "GOVERNED_NO_NETWORK",
-        "optional": true
-      },
-      {
-        "name": "GOVERNED_NO_DB",
-        "optional": true
-      },
-      {
-        "name": "GOVERNED_DB_MODE",
-        "optional": true
-      },
-      {
-        "name": "GOVERNED_PASS_ENV",
-        "optional": true
-      }
+      { "name": "OPENCLAW_WORKSPACE", "optional": true, "description": "Workspace root directory (default: ~/.openclaw/workspace)" },
+      { "name": "GOVERNED_WORK_DIR", "optional": true, "description": "Temporary working directory (default: /tmp/governed)" },
+      { "name": "GOVERNED_DB_PATH", "optional": true, "description": "SQLite reputation database path" },
+      { "name": "GOVERNED_AUTH_TOKEN", "optional": true, "description": "Bearer token for HTTP API mode" },
+      { "name": "CODEX_CLI", "optional": true, "description": "Path to Codex CLI binary" },
+      { "name": "GOVERNED_NO_NETWORK", "optional": true, "description": "Disable network access in grounding gate" },
+      { "name": "GOVERNED_NO_DB", "optional": true, "description": "Disable reputation DB writes" },
+      { "name": "GOVERNED_DB_MODE", "optional": true, "description": "DB mode (default: sqlite)" }
     ]
   }
 }

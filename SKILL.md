@@ -5,12 +5,17 @@ install: {"kind": "script", "script": "install.sh"}
 filesystem_writes: ["~/.openclaw/workspace/.state/governed_agents/"]
 capabilities: ["persistent_db_writes", "external_cli_execution", "network_requests"]
 network_access: true
+env_vars:
+  OPENCLAW_WORKSPACE: {"required": false, "description": "Workspace root directory (default: ~/.openclaw/workspace)"}
+  GOVERNED_WORK_DIR: {"required": false, "description": "Temporary working directory (default: /tmp/governed)"}
+  GOVERNED_DB_PATH: {"required": false, "description": "SQLite reputation database path"}
+  GOVERNED_AUTH_TOKEN: {"required": false, "description": "Bearer token for HTTP API mode"}
 metadata:
   {
     "openclaw":
       {
         "emoji": "🛡️",
-        "type": "executable / with-install-spec",
+        "type": "executable",
         "requires": { "bins": ["codex", "openclaw", "git", "pytest", "ruff", "flake8", "pylint"] },
         "install":
           [
