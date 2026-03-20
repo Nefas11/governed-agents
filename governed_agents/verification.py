@@ -3,6 +3,7 @@ Verification Gates — deterministic checks on agent output.
 No LLM needed. Pure code.
 """
 import os
+import shlex
 import subprocess
 import ast
 from pathlib import Path
@@ -106,7 +107,7 @@ def verify_tests(test_command: str, cwd: str = ".", timeout: int = 30) -> Verifi
     result = VerificationResult()
     try:
         proc = subprocess.run(
-            test_command, shell=True, cwd=cwd,
+            shlex.split(test_command), shell=False, cwd=cwd,
             capture_output=True, text=True, timeout=timeout
         )
         passed = proc.returncode == 0
@@ -124,7 +125,7 @@ def verify_lint(lint_command: str, cwd: str = ".", timeout: int = 15) -> Verific
     result = VerificationResult()
     try:
         proc = subprocess.run(
-            lint_command, shell=True, cwd=cwd,
+            shlex.split(lint_command), shell=False, cwd=cwd,
             capture_output=True, text=True, timeout=timeout
         )
         passed = proc.returncode == 0

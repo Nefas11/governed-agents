@@ -1,5 +1,6 @@
 import ast
 import glob
+import shlex
 import shutil
 import subprocess
 import sys
@@ -81,8 +82,8 @@ class Verifier:
     def _gate_tests(self) -> VerificationResult:
         try:
             result = subprocess.run(
-                self.run_tests,
-                shell=True,
+                shlex.split(self.run_tests),
+                shell=False,
                 capture_output=True,
                 text=True,
                 timeout=self.timeout,
